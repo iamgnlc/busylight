@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 
+import os
 import atexit
 import signal
 import sys
 import threading
 import time
 
-from flask import Flask, jsonify
+from flask import Flask, jsonify, Response
 from rpi_ws281x import PixelStrip, Color
 
 # =====================
@@ -24,7 +25,7 @@ BLINK_INTERVAL = 0.5  # 500ms
 # =====================
 # STATE
 # =====================
-current_status = "free"  # off, busy, away, free
+current_status = "free"  # off, busy, away, free, holiday
 current_brightness = 1  # 0–10
 
 blink_enabled = False
@@ -219,6 +220,24 @@ def blink_on():
 def blink_off():
     stop_blink()
     return "blink off", 200
+
+
+# =====================
+# SHUTDOWN ENDPOINT
+# =====================
+@app.route("/api/shutdown", methods=["GET"])
+def shutdown_rpi():
+    """
+    Shuts down the Raspberry Pi safely.
+    """
+
+    def shutdown():
+        stop_blink()
+        turn_off()
+        os.system("sudo shutdown now")  # or use 'sudo poweroff'
+
+    threading.Thread(target=shutdown, daemon=True).start()
+    return Response("Shutting down Raspberry Pi...", status=200)
 
 
 # =====================
