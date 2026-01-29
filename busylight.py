@@ -61,14 +61,19 @@ def apply_brightness():
 
 def apply_status():
     if current_status == "free":
-        set_all(Color(0, 255, 0))  # Green
+        # Green
+        set_all(Color(0, 255, 0))
     elif current_status == "busy":
-        set_all(Color(255, 0, 0))  # Red
+        # Red
+        set_all(Color(255, 0, 0))
     elif current_status == "away":
-        set_all(Color(255, 165, 0))  # Yellow
+        # Yellow
+        set_all(Color(255, 165, 0))
     elif current_status == "holiday":
-        set_all(Color(128, 0, 128))  # Purple
+        # Purple
+        set_all(Color(128, 0, 128))
     else:
+        stop_blink()
         turn_off()
 
 
@@ -114,7 +119,7 @@ def stop_blink():
 # =====================
 # CLEANUP ON EXIT
 # =====================
-def cleanup(*args):
+def cleanup():
     print("Shutting down... turning off LEDs")
     stop_blink()
     turn_off()
