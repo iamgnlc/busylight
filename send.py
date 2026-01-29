@@ -2,8 +2,11 @@
 
 import sys
 import subprocess
+import os
 
-BASE_URL = "http://pizero.gnlc.lan:5000/api"
+BASE_URL = "http://pizero:5000/api"
+
+SCRIPT_NAME = os.path.basename(sys.argv[0])
 
 
 def run_curl(endpoint):
@@ -17,7 +20,7 @@ def run_curl(endpoint):
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python run.py <command> [args]")
+        print(f"Usage: {SCRIPT_NAME} <command> [args]")
         sys.exit(1)
 
     cmd = sys.argv[1].lower()
@@ -26,12 +29,12 @@ def main():
         run_curl(cmd)
     elif cmd == "blink":
         if len(sys.argv) < 3 or sys.argv[2].lower() not in ["on", "off"]:
-            print("Usage: python bl.py blink <on|off>")
+            print(f"Usage: {SCRIPT_NAME} blink <on|off>")
             sys.exit(1)
         run_curl(f"blink/{sys.argv[2].lower()}")
     elif cmd == "brightness":
         if len(sys.argv) < 3:
-            print("Usage: python bl.py brightness <value>")
+            print(f"Usage: {SCRIPT_NAME} brightness <value>")
             sys.exit(1)
         run_curl(f"brightness/{sys.argv[2]}")
     else:
