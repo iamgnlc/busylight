@@ -5,6 +5,7 @@ import subprocess
 import os
 
 BASE_URL = "http://pizero:5000/api"
+# BASE_URL = "http://pizero.gnlc.lan:5000/api"
 
 SCRIPT_NAME = os.path.basename(sys.argv[0])
 
@@ -25,21 +26,25 @@ def main():
 
     cmd = sys.argv[1].lower()
 
-    if cmd in ["free", "busy", "away", "holiday", "off"]:
-        run_curl(cmd)
-    elif cmd == "blink":
-        if len(sys.argv) < 3 or sys.argv[2].lower() not in ["on", "off"]:
-            print(f"Usage: {SCRIPT_NAME} blink <on|off>")
+    match cmd:
+        case "free" | "busy" | "away" | "dnd" | "off" | "status":
+            run_curl(cmd)
+
+        case "blink":
+            if len(sys.argv) < 3 or sys.argv[2].lower() not in ["on", "off"]:
+                print(f"Usage: {SCRIPT_NAME} blink <on|off>")
+                sys.exit(1)
+            run_curl(f"blink/{sys.argv[2].lower()}")
+
+        case "brightness":
+            if len(sys.argv) < 3:
+                print(f"Usage: {SCRIPT_NAME} brightness <value>")
+                sys.exit(1)
+            run_curl(f"brightness/{sys.argv[2]}")
+
+        case _:
+            print(f"Unknown command: {cmd}")
             sys.exit(1)
-        run_curl(f"blink/{sys.argv[2].lower()}")
-    elif cmd == "brightness":
-        if len(sys.argv) < 3:
-            print(f"Usage: {SCRIPT_NAME} brightness <value>")
-            sys.exit(1)
-        run_curl(f"brightness/{sys.argv[2]}")
-    else:
-        print(f"Unknown command: {cmd}")
-        sys.exit(1)
 
 
 if __name__ == "__main__":

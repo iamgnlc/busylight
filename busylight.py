@@ -25,7 +25,7 @@ BLINK_INTERVAL = 0.5  # 500ms
 # =====================
 # STATE
 # =====================
-current_status = "free"  # off, busy, away, free, holiday
+current_status = "free"  # off, busy, away, free, dnd
 current_brightness = 1  # 0–10
 
 blink_enabled = False
@@ -70,9 +70,9 @@ def apply_status():
     elif current_status == "away":
         # Yellow
         set_all(Color(255, 165, 0))
-    elif current_status == "holiday":
+    elif current_status == "dnd":
         # Purple
-        set_all(Color(128, 0, 128))
+        set_all(Color(77, 23, 154))
     else:
         stop_blink()
         turn_off()
@@ -169,10 +169,10 @@ def away():
     return current_status, 200
 
 
-@app.route("/api/holiday", methods=["GET"])
-def holiday():
+@app.route("/api/dnd", methods=["GET"])
+def dnd():
     global current_status
-    current_status = "holiday"
+    current_status = "dnd"
     apply_status()
     return current_status, 200
 
