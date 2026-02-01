@@ -14,6 +14,12 @@ e.g.:
 python send.py busy
 ```
 
-### `.hammerspoon/init.lua`
+### `msg.py`
 
-Hammerspoon config file to read Teams status and send update to the server running on RPi.
+Display a scrolling message.
+
+e.g.:
+
+```bash
+sudo python3 msg.py --text=GNLC --color=#00ff00 --rotate180
+```
