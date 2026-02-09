@@ -6,7 +6,6 @@ import signal
 import sys
 import threading
 import time
-import json
 
 from flask import Flask, jsonify, Response
 from rpi_ws281x import PixelStrip, Color
@@ -14,27 +13,22 @@ from rpi_ws281x import PixelStrip, Color
 # =====================
 # LED CONFIGURATION
 # =====================
-LED_COUNT = 32
-LED_PIN = 18
+LED_COUNT = 32  # 4x8 matrix
+LED_PIN = 18  # GPIO18 (PWM)
 LED_FREQ_HZ = 800000
 LED_DMA = 10
 LED_INVERT = False
 LED_MAX_BRIGHTNESS = 255
 
-BLINK_INTERVAL = 0.5
-
-# state file in same directory as this script
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-STATE_FILE = os.path.join(BASE_DIR, "led_state.json")
-state_lock = threading.Lock()
+BLINK_INTERVAL = 0.5  # 500ms
 
 # =====================
 # STATE
 # =====================
 current_status = "free"  # off, busy, away, free, dnd
-current_brightness = 1  # 1–10
-blink_enabled = False
+current_brightness = 1  # 0–10
 
+blink_enabled = False
 blink_thread = None
 blink_stop_event = threading.Event()
 
@@ -45,40 +39,6 @@ strip = PixelStrip(
     LED_COUNT, LED_PIN, LED_FREQ_HZ, LED_DMA, LED_INVERT, LED_MAX_BRIGHTNESS
 )
 strip.begin()
-
-
-# =====================
-# STATE PERSISTENCE
-# =====================
-def save_state():
-    data = {
-        "status": current_status,
-        "brightness": current_brightness,
-        "blink": blink_enabled,
-    }
-    try:
-        with state_lock:
-            with open(STATE_FILE, "w") as f:
-                json.dump(data, f)
-    except Exception:
-        pass
-
-
-def load_state():
-    global current_status, current_brightness, blink_enabled
-
-    if not os.path.exists(STATE_FILE):
-        return
-
-    try:
-        with open(STATE_FILE, "r") as f:
-            data = json.load(f)
-
-        current_status = data.get("status", current_status)
-        current_brightness = int(data.get("brightness", current_brightness))
-        blink_enabled = bool(data.get("blink", blink_enabled))
-    except Exception:
-        pass
 
 
 # =====================
@@ -102,12 +62,16 @@ def apply_brightness():
 
 def apply_status():
     if current_status == "free":
+        # Green
         set_all(Color(0, 255, 0))
     elif current_status == "busy":
+        # Red
         set_all(Color(255, 0, 0))
     elif current_status == "away":
+        # Yellow
         set_all(Color(255, 165, 0))
     elif current_status == "dnd":
+        # Purple
         set_all(Color(77, 23, 154))
     else:
         stop_blink()
@@ -130,7 +94,7 @@ def blink_loop():
 
 
 def start_blink():
-    global blink_enabled, blink_thread
+    global blink_enabled, blink_thread, blink_stop_event
 
     if blink_enabled:
         return
@@ -143,7 +107,7 @@ def start_blink():
 
 
 def stop_blink():
-    global blink_enabled
+    global blink_enabled, blink_stop_event
 
     if not blink_enabled:
         return
@@ -154,16 +118,16 @@ def stop_blink():
 
 
 # =====================
-# CLEANUP
+# CLEANUP ON EXIT
 # =====================
-def cleanup(signum=None, frame=None):
+def cleanup():
+    print("Shutting down... turning off LEDs")
     stop_blink()
     turn_off()
-    save_state()
     sys.exit(0)
 
 
-atexit.register(save_state)
+atexit.register(turn_off)
 signal.signal(signal.SIGINT, cleanup)
 signal.signal(signal.SIGTERM, cleanup)
 
@@ -178,7 +142,6 @@ def off():
     global current_status
     current_status = "off"
     apply_status()
-    save_state()
     return current_status, 200
 
 
@@ -187,7 +150,6 @@ def busy():
     global current_status
     current_status = "busy"
     apply_status()
-    save_state()
     return current_status, 200
 
 
@@ -196,7 +158,6 @@ def free():
     global current_status
     current_status = "free"
     apply_status()
-    save_state()
     return current_status, 200
 
 
@@ -205,7 +166,6 @@ def away():
     global current_status
     current_status = "away"
     apply_status()
-    save_state()
     return current_status, 200
 
 
@@ -214,7 +174,6 @@ def dnd():
     global current_status
     current_status = "dnd"
     apply_status()
-    save_state()
     return current_status, 200
 
 
@@ -244,32 +203,38 @@ def brightness(level):
     current_brightness = level
     apply_brightness()
     apply_status()
-    save_state()
 
     return f"brightness {level}", 200
 
 
+# =====================
+# BLINK ENDPOINTS
+# =====================
 @app.route("/api/blink/on", methods=["GET"])
 def blink_on():
     start_blink()
-    save_state()
     return "blink on", 200
 
 
 @app.route("/api/blink/off", methods=["GET"])
 def blink_off():
     stop_blink()
-    save_state()
     return "blink off", 200
 
 
+# =====================
+# SHUTDOWN ENDPOINT
+# =====================
 @app.route("/api/shutdown", methods=["GET"])
 def shutdown_rpi():
+    """
+    Shuts down the Raspberry Pi safely.
+    """
+
     def shutdown():
         stop_blink()
         turn_off()
-        save_state()
-        os.system("sudo shutdown now")
+        os.system("sudo shutdown now")  # or use 'sudo poweroff'
 
     threading.Thread(target=shutdown, daemon=True).start()
     return Response("Shutting down Raspberry Pi...", status=200)
@@ -279,12 +244,8 @@ def shutdown_rpi():
 # STARTUP
 # =====================
 def init_app():
-    load_state()
     apply_brightness()
     apply_status()
-
-    if blink_enabled:
-        start_blink()
 
 
 if __name__ == "__main__":
