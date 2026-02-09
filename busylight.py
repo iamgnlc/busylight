@@ -23,11 +23,6 @@ LED_MAX_BRIGHTNESS = 255
 
 BLINK_INTERVAL = 0.5
 
-# state file in same directory as this script
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-STATE_FILE = os.path.join(BASE_DIR, "led_state.json")
-state_lock = threading.Lock()
-
 # =====================
 # STATE
 # =====================
@@ -37,6 +32,10 @@ blink_enabled = False
 
 blink_thread = None
 blink_stop_event = threading.Event()
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+STATE_FILE = os.path.join(BASE_DIR, "led_state.json")
+state_lock = threading.Lock()
 
 # =====================
 # LED SETUP
@@ -156,7 +155,7 @@ def stop_blink():
 # =====================
 # CLEANUP
 # =====================
-def cleanup(signum=None, frame=None):
+def cleanup():
     stop_blink()
     turn_off()
     save_state()
