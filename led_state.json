@@ -1,1 +1,1 @@
-{ "blink": true, "brightness": 1, "status": "off" }
+{ "blink": false, "brightness": 1, "disco_speed": 7, "status": "off" }

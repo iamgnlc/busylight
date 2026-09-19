@@ -27,7 +27,7 @@ def main():
     cmd = sys.argv[1].lower()
 
     match cmd:
-        case "free" | "busy" | "away" | "dnd" | "off" | "status":
+        case "free" | "busy" | "away" | "dnd" | "disco" | "off" | "status":
             run_curl(cmd)
 
         case "blink":

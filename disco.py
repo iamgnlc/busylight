@@ -1,37 +1,36 @@
 #!/usr/bin/env python3
-#
-# Examples:
-#   sudo python3 disco.py
-#   sudo python3 disco.py --brightness=1 --speed=10
 
-import argparse
-import time
 import random
-from rpi_ws281x import PixelStrip, Color
+import threading
+import time
 
-# MATRIX CONFIG
-WIDTH = 8
-HEIGHT = 4
-LED_COUNT = WIDTH * HEIGHT
+from rpi_ws281x import Color
 
-GPIO_PIN = 18
-FREQ_HZ = 800000
-DMA = 10
-INVERT = False
-CHANNEL = 0
+DEFAULT_SPEED = 1  # 1–10
 
-DEFAULT_BRIGHTNESS = 5  # 1–10
-DEFAULT_SPEED = 5  # 1–10
+disco_speed = DEFAULT_SPEED
+disco_enabled = False
+
+_strip = None
+_thread = None
+_stop_event = threading.Event()
 
 
-def clear(strip):
-    for i in range(LED_COUNT):
-        strip.setPixelColor(i, Color(0, 0, 0))
-    strip.show()
+def init(strip):
+    global _strip
+    _strip = strip
+
+
+def clamp_speed(speed: int) -> int:
+    if speed < 1:
+        return 1
+    if speed > 10:
+        return 10
+    return speed
 
 
 def randomize(strip):
-    for i in range(LED_COUNT):
+    for i in range(strip.numPixels()):
         r = random.randint(0, 255)
         g = random.randint(0, 255)
         b = random.randint(0, 255)
@@ -48,49 +47,40 @@ def speed_to_delay(speed_level: int) -> float:
     return 1.0 - ((speed_level - 1) * 0.1)
 
 
-def main():
-    parser = argparse.ArgumentParser()
-
-    parser.add_argument(
-        "--speed",
-        type=int,
-        choices=range(1, 11),
-        default=DEFAULT_SPEED,
-        help="Speed 1–10 (1 = slowest 1s, 10 = fastest 0.1s)",
-    )
-
-    parser.add_argument(
-        "--brightness",
-        type=int,
-        choices=range(1, 11),
-        default=DEFAULT_BRIGHTNESS,
-        help="Brightness level 1–10",
-    )
-
-    args = parser.parse_args()
-
-    delay = speed_to_delay(args.speed)
-    brightness = int(args.brightness * 255 / 10)
-
-    strip = PixelStrip(
-        LED_COUNT,
-        GPIO_PIN,
-        FREQ_HZ,
-        DMA,
-        INVERT,
-        brightness,
-        CHANNEL,
-    )
-    strip.begin()
-
-    try:
-        while True:
-            randomize(strip)
-            time.sleep(delay)
-
-    except KeyboardInterrupt:
-        clear(strip)
+def _disco_loop():
+    while not _stop_event.is_set():
+        randomize(_strip)
+        delay = speed_to_delay(disco_speed)
+        # Sleep in small chunks so speed/stop changes apply quickly
+        end = time.time() + delay
+        while time.time() < end:
+            if _stop_event.is_set():
+                return
+            time.sleep(0.05)
 
 
-if __name__ == "__main__":
-    main()
+def start(speed=None):
+    """Start disco mode. Optionally set speed (1–10). Returns active speed."""
+    global disco_enabled, disco_speed, _thread
+
+    if speed is not None:
+        disco_speed = clamp_speed(speed)
+
+    if disco_enabled:
+        return disco_speed
+
+    disco_enabled = True
+    _stop_event.clear()
+    _thread = threading.Thread(target=_disco_loop, daemon=True)
+    _thread.start()
+    return disco_speed
+
+
+def stop():
+    global disco_enabled
+
+    if not disco_enabled:
+        return
+
+    disco_enabled = False
+    _stop_event.set()
