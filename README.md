@@ -4,6 +4,10 @@
 
 Python server to run on a RPi with a 4×8 RGB LED hat model WS2812B.
 
+```bash
+sudo python3 busylight.py
+```
+
 ### `send.py`
 
 Shell script to send command to the server via terminal.
