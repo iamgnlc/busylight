@@ -11,6 +11,8 @@ import json
 from flask import Flask, jsonify, Response
 from rpi_ws281x import PixelStrip, Color
 
+import disco
+
 # =====================
 # LED CONFIGURATION
 # =====================
@@ -26,7 +28,7 @@ BLINK_INTERVAL = 0.5
 # =====================
 # STATE
 # =====================
-current_status = "free"  # off, busy, away, free, dnd
+current_status = "free"  # off, busy, away, free, dnd, disco
 current_brightness = 1  # 1–10
 blink_enabled = False
 
@@ -44,6 +46,7 @@ strip = PixelStrip(
     LED_COUNT, LED_PIN, LED_FREQ_HZ, LED_DMA, LED_INVERT, LED_MAX_BRIGHTNESS
 )
 strip.begin()
+disco.init(strip)
 
 
 # =====================
@@ -54,6 +57,7 @@ def save_state():
         "status": current_status,
         "brightness": current_brightness,
         "blink": blink_enabled,
+        "disco_speed": disco.disco_speed,
     }
     try:
         with state_lock:
@@ -76,6 +80,9 @@ def load_state():
         current_status = data.get("status", current_status)
         current_brightness = int(data.get("brightness", current_brightness))
         blink_enabled = bool(data.get("blink", blink_enabled))
+        disco.disco_speed = disco.clamp_speed(
+            int(data.get("disco_speed", disco.disco_speed))
+        )
     except Exception:
         pass
 
@@ -100,6 +107,8 @@ def apply_brightness():
 
 
 def apply_status():
+    if current_status == "disco":
+        return
     if current_status == "free":
         set_all(Color(0, 255, 0))
     elif current_status == "busy":
@@ -156,6 +165,7 @@ def stop_blink():
 # CLEANUP
 # =====================
 def cleanup():
+    disco.stop()
     stop_blink()
     turn_off()
     save_state()
@@ -175,6 +185,7 @@ app = Flask(__name__)
 @app.route("/api/off", methods=["GET"])
 def off():
     global current_status
+    disco.stop()
     current_status = "off"
     apply_status()
     save_state()
@@ -184,6 +195,7 @@ def off():
 @app.route("/api/busy", methods=["GET"])
 def busy():
     global current_status
+    disco.stop()
     current_status = "busy"
     apply_status()
     save_state()
@@ -193,6 +205,7 @@ def busy():
 @app.route("/api/free", methods=["GET"])
 def free():
     global current_status
+    disco.stop()
     current_status = "free"
     apply_status()
     save_state()
@@ -202,6 +215,7 @@ def free():
 @app.route("/api/away", methods=["GET"])
 def away():
     global current_status
+    disco.stop()
     current_status = "away"
     apply_status()
     save_state()
@@ -211,10 +225,22 @@ def away():
 @app.route("/api/dnd", methods=["GET"])
 def dnd():
     global current_status
+    disco.stop()
     current_status = "dnd"
     apply_status()
     save_state()
     return current_status, 200
+
+
+@app.route("/api/disco", methods=["GET"])
+@app.route("/api/disco/<int:speed>", methods=["GET"])
+def disco_route(speed=None):
+    global current_status
+    stop_blink()
+    current_status = "disco"
+    disco.start(speed)
+    save_state()
+    return f"disco {disco.disco_speed}", 200
 
 
 @app.route("/api/status", methods=["GET"])
@@ -225,6 +251,7 @@ def status():
                 "status": current_status,
                 "blink": blink_enabled,
                 "brightness": current_brightness,
+                "disco_speed": disco.disco_speed,
             }
         ),
         200,
@@ -242,7 +269,8 @@ def brightness(level):
 
     current_brightness = level
     apply_brightness()
-    apply_status()
+    if current_status != "disco":
+        apply_status()
     save_state()
 
     return f"brightness {level}", 200
@@ -250,6 +278,10 @@ def brightness(level):
 
 @app.route("/api/blink/on", methods=["GET"])
 def blink_on():
+    global current_status
+    disco.stop()
+    if current_status == "disco":
+        current_status = "free"
     start_blink()
     save_state()
     return "blink on", 200
@@ -265,6 +297,7 @@ def blink_off():
 @app.route("/api/shutdown", methods=["GET"])
 def shutdown_rpi():
     def shutdown():
+        disco.stop()
         stop_blink()
         turn_off()
         save_state()
@@ -280,10 +313,14 @@ def shutdown_rpi():
 def init_app():
     load_state()
     apply_brightness()
-    apply_status()
 
-    if blink_enabled:
-        start_blink()
+    if current_status == "disco":
+        stop_blink()
+        disco.start()
+    else:
+        apply_status()
+        if blink_enabled:
+            start_blink()
 
 
 if __name__ == "__main__":
